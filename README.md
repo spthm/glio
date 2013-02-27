@@ -1,4 +1,4 @@
 glio
 ====
 
-A python package for Gadget-like I/O.
+A Python package for Gadget-like I/O.
