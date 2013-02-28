@@ -175,6 +175,7 @@ class GadgetSnap(snapshots.Snap):
         and returns false.  If perror evaluates to False, issues are not
         printed.
         """
+
         valid = True
 
         if blocks == None:
