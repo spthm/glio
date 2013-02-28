@@ -35,7 +35,7 @@ header = collections.OrderedDict([
     ('flag_entropy_instead_u', ('i4', 1)) ])
 
 # block_name, (type[, ndims, particletype]).
-# TODO:  Allow 'f' for generic float and use getPrecision to find actual value.
+# TODO:  Allow generic float and use getPrecision to find actual value.
 blocks = collections.OrderedDict([
     ('pos', ('f4', 3, 'all')),
     ('vel', ('f4', 3, 'all')),
@@ -93,6 +93,7 @@ class GadgetSnap(snapshots.Snap):
             raise ValueError("Initialization mode '%s' not recognized." % mode)
 
     def check_header_formatter(self, header=None, perror=True):
+        
         """Verifies the header formatter, and updates it if necessary.
 
         For incomplete formatting, e.g. when an element size is not supplied,
@@ -106,17 +107,16 @@ class GadgetSnap(snapshots.Snap):
         and returns false.  If perror evaluates to False, issues are not
         printed.
         """
+        
         valid = True
 
         if header == None:
+            # header and self._header_formatter refer to the same dictionary!
             header = self._header_formatter
+        
         for (name, fmt) in header.iteritems():
             # So that these are defined even for an invalid formatter
             dtype, size = ('f4', 1)
-            if not isinstance(name, str):
-                valid = False
-                if perror:
-                    print("A header element name is not given as a string.")
             try:
                 if len(fmt) == 2:
                     dtype, size = fmt
@@ -133,6 +133,7 @@ class GadgetSnap(snapshots.Snap):
                 if perror:
                     print("Formatter for header element '%s' is " \
                           "not iterable (should be e.g. tuple)." % name)
+            
             try:
                 dtype = np.dtype(dtype)
             # Given dtype does not correspond to a numpy dtype.
@@ -141,6 +142,7 @@ class GadgetSnap(snapshots.Snap):
                 if perror:
                     print("Data type for header element '%s' is invalid."
                           % name)
+            
             try:
                 size = int(size)
             except TypeError:
@@ -148,14 +150,16 @@ class GadgetSnap(snapshots.Snap):
                 if perror:
                     print("Data size for header element '%s' is invalid."
                           % name)
+            
             header[name] = (dtype, size)
+        
         if valid:
             return header
         else:
             return False
 
-
     def check_blocks_formatter(self, blocks=None, perror=True):
+        
         """Verifies the blocks formatter, and updates it if necessary.
 
         For incomplete formatting:
@@ -174,14 +178,12 @@ class GadgetSnap(snapshots.Snap):
         valid = True
 
         if blocks == None:
+            # blocks and self._blocks_formatter refer to the same dictionary!
             blocks = self._blocks_formatter
+        
         for (name, fmt) in blocks.iteritems():
             # So that these are defined even for an invalid formatter.
             dtype, ndims, ptype = ('f8', 1, 'gas')
-            if not isinstance(name, str):
-                valid = False
-                if perror:
-                    print("A block name is not given as a string.")
             try:
                 if len(fmt) == 3:
                     dtype, ndims, ptype = fmt
@@ -204,6 +206,7 @@ class GadgetSnap(snapshots.Snap):
                 if perror:
                     print("Formatter for block '%s' is " \
                           "not iterable (should be e.g. tuple)." % name)
+            
             try:
                 np.dtype(dtype)
             # Given dtype does not correspond to a numpy dtype.
@@ -211,19 +214,24 @@ class GadgetSnap(snapshots.Snap):
                 valid = False
                 if perror:
                     print("Data type for block '%s' is invalid."  % name)
+            
             try:
                 ndims = int(ndims)
             except TypeError:
                 valid = False
                 if perror:
                     print("Ndims for block '%s' is invalid." % name)
+            
             # TODO: Make this tuple an instance attribute.
             if ptype not in ('all', 'mass', 'gas'):
                 valid = False
                 if perror:
                     print("Particle type for block '%s' is invalid." % name)
+
+        blocks[name] = (dtype, ndims, ptype)
+        
         if valid:
-            return header
+            return blocks
         else:
             return False
 
