@@ -37,13 +37,16 @@ header = collections.OrderedDict([
 # block_name, (type[, ndims, particletype]).
 # TODO:  Allow generic float and use getPrecision to find actual value.
 blocks = collections.OrderedDict([
-    ('pos', ('f4', 3, 'all')),
-    ('vel', ('f4', 3, 'all')),
-    ('ID', ('u4', 1, 'all')),
-    ('mass', ('f4', 1, 'mass')),
-    ('u', ('f4', 1, 'gas')),
-    ('rho', ('f4', 1, 'gas')),
-    ('hsml', ('f4', 1, 'gas')) ])
+    ('pos', ('f4', 3, [0,1,2,3,4,5])),
+    ('vel', ('f4', 3, [0,1,2,3,4,5])),
+    ('ID', ('u4', 1, [0,1,2,3,4,5])),
+    ('mass', ('f4', 1, [0,1,2,3,4,5])),
+    ('u', ('f4', 1, [0,])),
+    ('rho', ('f4', 1, [0,])),
+    ('hsml', ('f4', 1, [0,])) ])
+
+# Gadget-2 has 6 different particle types.
+ptypes = [0, 1, 2, 3, 4, 5]
 
 class GadgetSnap(snapshots.Snap):
 
@@ -74,6 +77,7 @@ class GadgetSnap(snapshots.Snap):
         # FIXME: Doesn't work on Windows.
         self.file_name = self.file_loc.split('/')
         
+        self._all_particle_types = ptypes
         # Use copies so that gadget.header and gadget.blocks are not changed
         # when updating the header formatters.
         self._header_formatter = copy.copy(header)
@@ -158,7 +162,7 @@ class GadgetSnap(snapshots.Snap):
         else:
             return False
 
-    def check_blocks_formatter(self, blocks=None, perror=True):
+    def check_blocks_formatter(self, blocks=None):
         
         """Verifies the blocks formatter, and updates it if necessary.
 
@@ -172,8 +176,7 @@ class GadgetSnap(snapshots.Snap):
         for checking.
 
         Returns a valid block formatter if possible, else prints the issues
-        and returns false.  If perror evaluates to False, issues are not
-        printed.
+        and returns false.
         """
 
         valid = True
@@ -184,52 +187,44 @@ class GadgetSnap(snapshots.Snap):
         
         for (name, fmt) in blocks.iteritems():
             # So that these are defined even for an invalid formatter.
-            dtype, ndims, ptype = ('f8', 1, 'gas')
+            dtype, ndims, ptypes = ('f8', 1, [0,])
             try:
                 if len(fmt) == 3:
-                    dtype, ndims, ptype = fmt
+                    dtype, ndims, ptypes = fmt
                 elif len(fmt) == 2:
-                    dtype, fmt2  = fmt
-                    # If fmt2 is a string, assume it is the particle type.
-                    # Otherwise, the Ndims.  Validity of both checked later.
-                    if isinstance(fmt2, str):
-                        ndims, ptype = (1, fmt2)
-                    else:
-                        ndims, ptype = (fmt2, 'all')
+                    dtype, ndims  = fmt
+                    # Assume attribute of all particles, e.g. position.
+                    ptypes = self._all_particle_types
                 elif len(fmt) == 1:
-                    dtype, size = (fmt[0], 1, 'all')
+                    dtype, size = (fmt[0], 1, self._all_particle_types)
                 else:
                     valid = False
-                    if perror:
-                        print("Formatter for block '%s' is invalid." % name)
+                    print("Formatter for block '%s' is invalid." % name)
             except TypeError:
                 valid = False
-                if perror:
-                    print("Formatter for block '%s' is " \
-                          "not iterable (should be e.g. tuple)." % name)
+                print("Formatter for block '%s' is " \
+                      "not iterable (should be e.g. tuple)." % name)
             
             try:
                 np.dtype(dtype)
             # Given dtype does not correspond to a numpy dtype.
             except TypeError:
                 valid = False
-                if perror:
-                    print("Data type for block '%s' is invalid."  % name)
+                print("Data type for block '%s' is invalid."  % name)
             
             try:
                 ndims = int(ndims)
             except TypeError:
                 valid = False
-                if perror:
-                    print("Ndims for block '%s' is invalid." % name)
+                print("Ndims for block '%s' is invalid." % name)
             
             # TODO: Make this tuple an instance attribute.
-            if ptype not in ('all', 'mass', 'gas'):
-                valid = False
-                if perror:
-                    print("Particle type for block '%s' is invalid." % name)
+            for p in ptypes:
+                if p not in self._all_particle_types:
+                    valid = False
+                    print("Particle type(s) for block '%s' is (are) invalid." % name)
 
-        blocks[name] = (dtype, ndims, ptype)
+        blocks[name] = (dtype, ndims, ptypes)
         
         if valid:
             return blocks
@@ -247,7 +242,7 @@ class GadgetSnap(snapshots.Snap):
                 # Multiple elements, so header[name] is an array.
                 else:
                     self.header[name] = np.fromfile(f, *fmt)
-            # Read header foot.
+            # Read header footer.
             self._header_end = f.tell()
             self._read_blocksize(f)
             
@@ -255,40 +250,32 @@ class GadgetSnap(snapshots.Snap):
         npart = self.header['npart']
         mass = self.header['mass']
         # FIXME: Doesn't work if npartTotHW is non-zero (i.e. for Huge Sims).
-        Ntot = npart.sum()
-        Ngas = npart[0]
         # A zero in mass[6] array => mass is to be read in from block.
         Nmassive = npart[(npart > 0) * (mass == 0)].sum()
-        Ns = (N, Nmassive, Ngas)
         
         with open(self.file_loc) as f:
             for name in blocks.iterkeys():
-                self._blocks[name] = self._read_array_block(name, f, Ns)
+                self._blocks[name] = self._read_array_block(name, f)
 
     def _read_blocksize(self, f):
         return np.fromfile(f, 'u4', 1)[0]
         
-    def _read_array_block(self, name, f, Ns):
-        Ntot, Nmassive, Ngas = Ns
-        dtype, ndims, ptype = self._blocks_formatter[name]
-
-        if ptype == 'all':
-            N = Ntot
-        elif ptype == 'mass':
-            N = Nmassive
-        elif ptype == 'gas':
-            N = Ngas
-        else:
-            raise ValueError("Reading block '%s'.  Unknown particle type."
-                             % name)
-        Nread = N*3 
+    def _read_array_block(self, name, f):
+        dtype, ndims, ptypes = self._blocks_formatter[name]
         blocksize = self._read_blocksize(f)
-
-        self._blocks[name] = np.fromfile(f, dtype, Nread)
-        if ndims > 1:
-            self._blocks[name].reshape((N,3))
-
-        self._read_blocksize(f)
+        block = self._all_particle_types
+        for p in block:
+            if p in ptypes:
+                # The case that particle type p is in this block.
+                N = self.header['npart'][p]
+                block[p] = np.fromfile(f, dtype, N*ndims)
+                if ndims > 1:
+                    self._blocks[name].reshape((N,ndims))
+                self._read_blocksize(f)
+            else:
+                # We want to know that there are zero particles of this type.
+                block[p] = 0
+        return block
     
     def _seek_block_start(self, f):
         # TODO: Use self._header_end if set.  Default it to None in init?
