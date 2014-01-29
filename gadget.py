@@ -261,7 +261,6 @@ class GadgetSnap(object):
     def _load_header(self):
         with open(self.file_loc) as f:
             self._header_size = self._read_blocksize(f)
-            print(self._header_size)
             self._header_start = f.tell()
             for (name, fmt) in header.iteritems():
                 # If only one element to be read.
@@ -271,7 +270,7 @@ class GadgetSnap(object):
                 else:
                     self.header[name] = np.fromfile(f, *fmt)
             # Read header footer.
-            print(self._read_blocksize(f))
+            self._read_blocksize(f)
             self._blocks_start = f.tell()
             
     def _load_blocks(self):
@@ -307,7 +306,6 @@ class GadgetSnap(object):
         
         dtype, ndims, ptypes = self._blocks_formatter[name]
         blocksize = self._read_blocksize(f)
-        print(blocksize)
         for p in block:
             # The case that particle type p is in this block.
             if p in ptypes:
