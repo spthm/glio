@@ -1,7 +1,9 @@
-import collections
-import numpy as np
-
 from __future__ import print_function
+
+import collections
+import copy
+
+import numpy as np
 
 # The following numpy shorthand types are used:
 # 'i4' = integer          = 4 bytes.
@@ -32,7 +34,8 @@ header = collections.OrderedDict([
     ('flag_stellarage', ('i4', 1)),
     ('flag_metals', ('i4', 1)),
     ('npartTotalHighWord', ('u4', 6)),
-    ('flag_entropy_instead_u', ('i4', 1)) ])
+    ('flag_entropy_instead_u', ('i4', 1)),
+    ('extra', ('i4', 15))])
 
 # block_name, (type[, ndims, particletype]).
 # TODO:  Allow generic float and use getPrecision to find actual value.
@@ -48,7 +51,7 @@ blocks = collections.OrderedDict([
 # Gadget-2 has 6 different particle types.
 ptypes = [0, 1, 2, 3, 4, 5]
 
-class GadgetSnap(snapshots.Snap):
+class GadgetSnap(object):
 
     """The main class for Gadget snapshots.
     
@@ -258,6 +261,7 @@ class GadgetSnap(snapshots.Snap):
     def _load_header(self):
         with open(self.file_loc) as f:
             self._header_size = self._read_blocksize(f)
+            print(self._header_size)
             self._header_start = f.tell()
             for (name, fmt) in header.iteritems():
                 # If only one element to be read.
@@ -267,8 +271,8 @@ class GadgetSnap(snapshots.Snap):
                 else:
                     self.header[name] = np.fromfile(f, *fmt)
             # Read header footer.
-            self._header_end = f.tell()
-            self._read_blocksize(f)
+            print(self._read_blocksize(f))
+            self._blocks_start = f.tell()
             
     def _load_blocks(self):
         npart = self.header['npart']
@@ -279,6 +283,7 @@ class GadgetSnap(snapshots.Snap):
         
         with open(self.file_loc) as f:
             # self._read_array_block handles the special case of mass.
+            f.seek(self._blocks_start)
             for name in blocks.iterkeys():
                 self._blocks[name] = self._read_array_block(name, f)
 
@@ -286,13 +291,14 @@ class GadgetSnap(snapshots.Snap):
         return np.fromfile(f, 'u4', 1)[0]
         
     def _read_array_block(self, name, f):
-        npart = self.header[name]
+        npart = self.header['npart']
         # Empty block data for each particle, to be filled with the read data.
         block = self._all_particle_types[:]
 
         # Special case of mass where all data is in the header, and there is no
         # mass block.
         if name == 'mass':
+            mass = self.header['mass']
             N_with_mass = npart[(npart > 0) * (mass == 0)].sum()
             if N_with_mass == 0:
                 for p in block:
@@ -301,6 +307,7 @@ class GadgetSnap(snapshots.Snap):
         
         dtype, ndims, ptypes = self._blocks_formatter[name]
         blocksize = self._read_blocksize(f)
+        print(blocksize)
         for p in block:
             # The case that particle type p is in this block.
             if p in ptypes:
@@ -318,14 +325,14 @@ class GadgetSnap(snapshots.Snap):
                 else:
                     block[p] = np.fromfile(f, dtype, N*ndims)
                     if ndims > 1:
-                        self._blocks[name].reshape((N,ndims))
+                        block[p].reshape((N,ndims))
             else:
                 # We want to know that there are zero particles of this type.
                 block[p] = 0
         blocksize_end = self._read_blocksize(f)
         assert blocksize == blocksize_end, \
-            "blocksize (%g) != (%g) blocksize_end in block %s", \
-            % (blocksize, blocksize_end, name)
+                "blocksize (%g) != (%g) blocksize_end in block %s" \
+                % (blocksize, blocksize_end, name)
         return block
 
     def _seek_block_start(self, f):
@@ -337,8 +344,8 @@ class GadgetSnap(snapshots.Snap):
 
 
     def __getitem__(self, name):
-        if index in self._blocks:
+        if name in self._blocks:
             return self._blocks[name]
         else:
-            raise ValueError("Data type %s does no exist in this snapshot.", \
-                             % (name, )
+            raise ValueError("Data type %s does no exist in this snapshot." \
+                             % (name, ))
