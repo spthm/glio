@@ -11,7 +11,7 @@ from __future__ import print_function
 # 'f8' = double           = 8 bytes.
 
 # The below formats must be in the correct order!  That is,
-# the ordering of the terms in header, blocks must match that of
+# the ordering of the terms in header and blocks must match that of
 # the corresponding binary file.
 
 # header_entry_name, (type[, length]).
@@ -54,23 +54,41 @@ class GadgetSnap(snapshots.Snap):
     
     If initialized with a file name, it reads in the snapshot data.  Can also
     be used for creating Gadget output snapshots from generic input.
+
+
+    Accessing simulation data
+    -------------------------
+    
+    The simulation data associated with a snapshot, s, can be accessed as,
+        
+        >>> s['field_name'][p][0:N]
+
+    where 'field_name' is one of s.get_block_names(), p is the particle type,
+    one of [0, 1, 2, 3, 4, 5] as defined in Gadget-2 and [0:N] implies we wish
+    to access all particles from the first to the Nth.
     
     
-    -- Acessing metadata ---
+    Acessing metadata
+    -----------------
     
     The header information associated with a snapshot, s, can be accessed as,
     
         s.header['header_entry_name'].
         
-    'header_entry_name' can be any of the strings acting as keys of the header
-    OrderedDict object defined for this snapshot type.  A Python dictionary is
-    returned for s.header, and an integer, float or numpy array as appropriate
-    for a header element.
+    where 'header_entry_name' is one of s.get_header_names.  s.header is a
+    Python dictionary, and the above returns an integer, float or numpy array
+    as appropriate for the header element.
     
     """
     
     def __init__(self, file_loc, mode='load'):
-        """Initializes a Gadget snapshot."""
+        """Initializes a Gadget snapshot.
+        
+        To read in a snapshot:
+            
+            >>> s = glio.GadgetSnap("file_name")
+
+        """
         super(GadgetSnap,self).__init__()
         self.file_loc = file_loc
         # Remove any directories from file location.
@@ -231,6 +249,12 @@ class GadgetSnap(snapshots.Snap):
         else:
             return False
 
+    def get_block_names(self):
+        return self._blocks.keys()
+
+    def get_header_names(self):
+        return self.header.keys()
+
     def _load_header(self):
         with open(self.file_loc) as f:
             self._header_size = self._read_blocksize(f)
@@ -254,6 +278,7 @@ class GadgetSnap(snapshots.Snap):
         Nmassive = npart[(npart > 0) * (mass == 0)].sum()
         
         with open(self.file_loc) as f:
+            # self._read_array_block handles the special case of mass.
             for name in blocks.iterkeys():
                 self._blocks[name] = self._read_array_block(name, f)
 
@@ -261,25 +286,59 @@ class GadgetSnap(snapshots.Snap):
         return np.fromfile(f, 'u4', 1)[0]
         
     def _read_array_block(self, name, f):
+        npart = self.header[name]
+        # Empty block data for each particle, to be filled with the read data.
+        block = self._all_particle_types[:]
+
+        # Special case of mass where all data is in the header, and there is no
+        # mass block.
+        if name == 'mass':
+            N_with_mass = npart[(npart > 0) * (mass == 0)].sum()
+            if N_with_mass == 0:
+                for p in block:
+                    block[p] = mass[p] * np.ones(npart[p])
+            return block
+        
         dtype, ndims, ptypes = self._blocks_formatter[name]
         blocksize = self._read_blocksize(f)
-        block = self._all_particle_types
         for p in block:
+            # The case that particle type p is in this block.
             if p in ptypes:
-                # The case that particle type p is in this block.
-                N = self.header['npart'][p]
-                block[p] = np.fromfile(f, dtype, N*ndims)
-                if ndims > 1:
-                    self._blocks[name].reshape((N,ndims))
-                self._read_blocksize(f)
+                # Mass is a special case, since some data may have to be
+                # generated from the header.
+                N = npart[p]
+                if name == "mass":
+                    pmass = mass[p]
+                    if N > 0 and pmass > 0:
+                        block[p] = np.fromfile(f, dtype, Nmass)
+                    elif N > 0 and pmass == 0:
+                        block[p] = pmass * np.ones(N)
+                    else:
+                        block[p] = 0
+                else:
+                    block[p] = np.fromfile(f, dtype, N*ndims)
+                    if ndims > 1:
+                        self._blocks[name].reshape((N,ndims))
             else:
                 # We want to know that there are zero particles of this type.
                 block[p] = 0
+        blocksize_end = self._read_blocksize(f)
+        assert blocksize == blocksize_end, \
+            "blocksize (%g) != (%g) blocksize_end in block %s", \
+            % (blocksize, blocksize_end, name)
         return block
-    
+
     def _seek_block_start(self, f):
         # TODO: Use self._header_end if set.  Default it to None in init?
         f.seek(0)
         self._read_blocksize(f)
         f.seek(self._header_size)
         self._read_blocksize(f)
+
+
+    def __getitem__(self, name):
+        if index in self._blocks:
+            return self._blocks[name]
+        else:
+            raise ValueError("Data type %s does no exist in this snapshot.", \
+                             % (name, )
