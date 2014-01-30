@@ -321,9 +321,11 @@ class GadgetSnap(object):
                     else:
                         block[p] = 0
                 else:
-                    block[p] = np.fromfile(f, dtype, N*ndims)
                     if ndims > 1:
-                        block[p].reshape((N,ndims))
+                        block[p] = np.fromfile(f, dtype, N*ndims) \
+                                     .reshape((N,ndims))
+                    else:
+                        block[p] = np.fromfile(f, dtype, N*ndims)
             else:
                 # We want to know that there are zero particles of this type.
                 block[p] = 0
