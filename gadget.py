@@ -1,9 +1,9 @@
 from __future__ import print_function
-
-import collections
-import copy
+from collections import OrderedDict
 
 import numpy as np
+
+from snapshot import SnapshotBase, SnapshotIOException
 
 # The following numpy shorthand types are used:
 # 'i4' = integer          = 4 bytes.
@@ -17,7 +17,7 @@ import numpy as np
 # the corresponding binary file.
 
 # header_entry_name, (type[, length]).
-header = collections.OrderedDict([
+_header_schema = OrderedDict([
     ('npart', ('i4', 6)),
     ('mass', ('f8', 6)),
     ('time', ('f8', 1)),
@@ -35,317 +35,178 @@ header = collections.OrderedDict([
     ('flag_metals', ('i4', 1)),
     ('npartTotalHighWord', ('u4', 6)),
     ('flag_entropy_instead_u', ('i4', 1)),
-    ('extra', ('i4', 15))])
+    ('padding', ('i4', 15)),
+])
 
 # block_name, (type[, ndims, particletype]).
-# TODO:  Allow generic float and use getPrecision to find actual value.
-blocks = collections.OrderedDict([
+_blocks_schema = OrderedDict([
     ('pos', ('f4', 3, [0,1,2,3,4,5])),
     ('vel', ('f4', 3, [0,1,2,3,4,5])),
     ('ID', ('u4', 1, [0,1,2,3,4,5])),
     ('mass', ('f4', 1, [0,1,2,3,4,5])),
     ('u', ('f4', 1, [0,])),
     ('rho', ('f4', 1, [0,])),
-    ('hsml', ('f4', 1, [0,])) ])
+    ('hsml', ('f4', 1, [0,])),
+])
 
-# Gadget-2 has 6 different particle types.
-ptypes = [0, 1, 2, 3, 4, 5]
 
-class GadgetSnap(object):
+class GadgetSnapshot(SnapshotBase):
+    """
+    A class for Gadget snapshots.
 
-    """The main class for Gadget snapshots.
-    
-    If initialized with a file name, it reads in the snapshot data.  Can also
-    be used for creating Gadget output snapshots from generic input.
+    See also SnapshotBase.
+
+    To read in a snapshot file:
+
+        >>> from glio import GadgetSnapshot
+        >>> s = GadgetSnapshot('file_name')
+        >>> s.load()
 
 
     Accessing simulation data
     -------------------------
-    
-    The simulation data associated with a snapshot, s, can be accessed as,
-        
-        >>> s['field_name'][p][0:N]
 
-    where 'field_name' is one of s.get_block_names(), p is the particle type,
-    one of [0, 1, 2, 3, 4, 5] as defined in Gadget-2 and [0:N] implies we wish
+    The simulation data associated with a snapshot, s, can be accessed as,
+
+        >>> s.field_name[p]
+
+    where 'field_name' is one of the strings in s.fields, p is the particle
+    type index (in [0, 6] as defined in Gadget-2) and [0:N] implies we wish
     to access all particles from the first to the Nth.
-    
-    
+
+    All fields may be iterated through using
+
+        >>> for (name, field) in s.iterfields():
+        >>>    # Do something
+
+
     Acessing metadata
     -----------------
-    
-    The header information associated with a snapshot, s, can be accessed as,
-    
-        s.header['header_entry_name'].
-        
-    where 'header_entry_name' is one of s.get_header_names.  s.header is a
-    Python dictionary, and the above returns an integer, float or numpy array
-    as appropriate for the header element.
-    
+
+    The associated file name and header are both attributes of the snapshot,
+    accessed as
+
+        >>> s.fname
+        'some_file_name'
+        >>> s.header
+
+    For the latter, see the SnapshotHeader class.
     """
-    
-    def __init__(self, file_loc, mode='load'):
-        """Initializes a Gadget snapshot.
-        
-        To read in a snapshot:
-            
-            >>> s = glio.GadgetSnap("file_name")
 
-        """
-        super(GadgetSnap,self).__init__()
-        self.file_loc = file_loc
-        # Remove any directories from file location.
-        # FIXME: Doesn't work on Windows.
-        self.file_name = self.file_loc.split('/')
-        
-        self._all_particle_types = ptypes
-        # Use copies so that gadget.header and gadget.blocks are not changed
-        # when updating the header formatters.
-        self._header_formatter = copy.copy(header)
-        self._blocks_formatter = copy.copy(blocks)
-        self.check_header_formatter()
-        self.check_blocks_formatter()
+    def __init__(self, fname):
+        """Initializes a Gadget snapshot."""
+        super(GadgetSnapshot, self).__init__(fname, _header_schema,
+                                             _blocks_schema)
 
-        self.header = {}
-        self._blocks = {}
-                
-        if mode == 'load':
-            self._load_header()
-            self._load_blocks()
-        elif mode == 'create':
-            pass
-        else:
-            raise ValueError("Initialization mode '%s' not recognized." % mode)
+    def update_header(self):
+        self._update_npars()
 
-    def check_header_formatter(self, header=None, perror=True):
-        
-        """Verifies the header formatter, and updates it if necessary.
+    def _fix_header_masses(self):
+        new_masses = [0 for _ in self.header.mass]
+        dtype = self.header._schema['mass'][0]
+        self.header.mass = np.array(new_masses, dtype=dtype)
 
-        For incomplete formatting, e.g. when an element size is not supplied,
-        an element length of one is assumed and added to the formatter.
-        
-        When called with no arguments, the internal header formatter is used.
-        Optionally, the method may be called with a header format dictionary
-        for checking.
-
-        Returns a valid header formatter if possible, else prints the issues
-        and returns false.  If perror evaluates to False, issues are not
-        printed.
-        """
-        
-        valid = True
-
-        if header == None:
-            # header and self._header_formatter refer to the same dictionary!
-            header = self._header_formatter
-        
-        for (name, fmt) in header.iteritems():
-            # So that these are defined even for an invalid formatter
-            dtype, size = ('f4', 1)
-            try:
-                if len(fmt) == 2:
-                    dtype, size = fmt
-                # If the size of the header element is not given, assume = 1.
-                elif len(fmt) == 1:
-                    dtype, size = (fmt[0], 1)
-                else:
-                    valid = False
-                    if perror:
-                        print("Formatter for header element '%s' " \
-                              "is invalid." % name)
-            except TypeError:
-                valid = False
-                if perror:
-                    print("Formatter for header element '%s' is " \
-                          "not iterable (should be e.g. tuple)." % name)
-            
-            try:
-                dtype = np.dtype(dtype)
-            # Given dtype does not correspond to a numpy dtype.
-            except TypeError:
-                valid = False
-                if perror:
-                    print("Data type for header element '%s' is invalid."
-                          % name)
-            
-            try:
-                size = int(size)
-            except TypeError:
-                valid = False
-                if perror:
-                    print("Data size for header element '%s' is invalid."
-                          % name)
-            
-            header[name] = (dtype, size)
-        
-        if valid:
-            return header
-        else:
-            return False
-
-    def check_blocks_formatter(self, blocks=None):
-        
-        """Verifies the blocks formatter, and updates it if necessary.
-
-        For incomplete formatting:
-        - when a block particle type is not supplied, it is assumed to be 
-          'all' (all particle types).
-        - when a block N-dimesions is not supplied, it is assumed to be 1.
-        
-        When called with no arguments, the internal block formatter is used.
-        Optionally, the method may be called with a block format dictionary
-        for checking.
-
-        Returns a valid block formatter if possible, else prints the issues
-        and returns false.
-        """
-
-        valid = True
-
-        if blocks == None:
-            # blocks and self._blocks_formatter refer to the same dictionary!
-            blocks = self._blocks_formatter
-        
-        for (name, fmt) in blocks.iteritems():
-            # So that these are defined even for an invalid formatter.
-            dtype, ndims, ptypes = ('f8', 1, [0,])
-            try:
-                if len(fmt) == 3:
-                    dtype, ndims, ptypes = fmt
-                elif len(fmt) == 2:
-                    dtype, ndims  = fmt
-                    # Assume attribute of all particles, e.g. position.
-                    ptypes = self._all_particle_types
-                elif len(fmt) == 1:
-                    dtype, size = (fmt[0], 1, self._all_particle_types)
-                else:
-                    valid = False
-                    print("Formatter for block '%s' is invalid." % name)
-            except TypeError:
-                valid = False
-                print("Formatter for block '%s' is " \
-                      "not iterable (should be e.g. tuple)." % name)
-            
-            try:
-                np.dtype(dtype)
-            # Given dtype does not correspond to a numpy dtype.
-            except TypeError:
-                valid = False
-                print("Data type for block '%s' is invalid."  % name)
-            
-            try:
-                ndims = int(ndims)
-            except TypeError:
-                valid = False
-                print("Ndims for block '%s' is invalid." % name)
-            
-            # TODO: Make this tuple an instance attribute.
-            for p in ptypes:
-                if p not in self._all_particle_types:
-                    valid = False
-                    print("Particle type(s) for block '%s' is (are) invalid." % name)
-
-        blocks[name] = (dtype, ndims, ptypes)
-        
-        if valid:
-            return blocks
-        else:
-            return False
-
-    def get_block_names(self):
-        return self._blocks.keys()
-
-    def get_header_names(self):
-        return self.header.keys()
-
-    def _load_header(self):
-        with open(self.file_loc) as f:
-            self._header_size = self._read_blocksize(f)
-            self._header_start = f.tell()
-            for (name, fmt) in header.iteritems():
-                # If only one element to be read.
-                if fmt[1] == 1:
-                    self.header[name] = np.fromfile(f, *fmt)[0]
-                # Multiple elements, so header[name] is an array.
-                else:
-                    self.header[name] = np.fromfile(f, *fmt)
-            # Read header footer.
-            self._read_blocksize(f)
-            self._blocks_start = f.tell()
-            
-    def _load_blocks(self):
-        npart = self.header['npart']
-        mass = self.header['mass']
-        # FIXME: Doesn't work if npartTotHW is non-zero (i.e. for Huge Sims).
-        # A zero in mass[6] array => mass is to be read in from block.
-        Nmassive = npart[(npart > 0) * (mass == 0)].sum()
-        
-        with open(self.file_loc) as f:
-            # self._read_array_block handles the special case of mass.
-            f.seek(self._blocks_start)
-            for name in blocks.iterkeys():
-                self._blocks[name] = self._read_array_block(name, f)
-
-    def _read_blocksize(self, f):
-        return np.fromfile(f, 'u4', 1)[0]
-        
-    def _read_array_block(self, name, f):
-        npart = self.header['npart']
-        # Empty block data for each particle, to be filled with the read data.
-        block = self._all_particle_types[:]
-
-        # Special case of mass where all data is in the header, and there is no
-        # mass block.
-        if name == 'mass':
-            mass = self.header['mass']
-            N_with_mass = npart[(npart > 0) * (mass == 0)].sum()
-            if N_with_mass == 0:
-                for p in block:
-                    block[p] = mass[p] * np.ones(npart[p])
-            return block
-        
-        dtype, ndims, ptypes = self._blocks_formatter[name]
-        blocksize = self._read_blocksize(f)
-        for p in block:
-            # The case that particle type p is in this block.
-            if p in ptypes:
-                # Mass is a special case, since some data may have to be
-                # generated from the header.
-                N = npart[p]
-                if name == "mass":
-                    pmass = mass[p]
-                    if N > 0 and pmass > 0:
-                        block[p] = np.fromfile(f, dtype, Nmass)
-                    elif N > 0 and pmass == 0:
-                        block[p] = pmass * np.ones(N)
-                    else:
-                        block[p] = 0
-                else:
-                    if ndims > 1:
-                        block[p] = np.fromfile(f, dtype, N*ndims) \
-                                     .reshape((N,ndims))
-                    else:
-                        block[p] = np.fromfile(f, dtype, N*ndims)
+    def _load(self, ffile):
+        # FIXME: Doesn't work if npartTotHighWord is non-zero.
+        # Can easily loop through and compute the actual npart values,
+        # but what is the difference between npart and npartTotal?
+        for (name, fmt) in self._schema.iteritems():
+            if name == 'mass':
+                self._load_masses(ffile)
+                self._fix_header_masses()
             else:
-                # We want to know that there are zero particles of this type.
-                block[p] = 0
-        blocksize_end = self._read_blocksize(f)
-        assert blocksize == blocksize_end, \
-                "blocksize (%g) != (%g) blocksize_end in block %s" \
-                % (blocksize, blocksize_end, name)
-        return block
+                dtype, _, _ = fmt
+                block_data = ffile.read_record(dtype)
+                pdata = self._parse_block(block_data, fmt)
+                setattr(self, name, pdata)
 
-    def _seek_block_start(self, f):
-        # TODO: Use self._header_end if set.  Default it to None in init?
-        f.seek(0)
-        self._read_blocksize(f)
-        f.seek(self._header_size)
-        self._read_blocksize(f)
+    def _load_masses(self, ffile):
+        """
+        Load masses, accounting for those present in the header.
 
-
-    def __getitem__(self, name):
-        if name in self._blocks:
-            return self._blocks[name]
+        The next call to ffile.read_record() must return the mass data, if it
+        is present.
+        """
+        fmt = self._schema['mass']
+        dtype, _, _ = fmt
+        if self._has_mass_block():
+            block_data = ffile.read_record(dtype)
         else:
-            raise ValueError("Data type %s does no exist in this snapshot." \
-                             % (name, ))
+            block_data = []
+        mass_data = self._parse_masses(block_data, fmt)
+        setattr(self, 'mass', mass_data)
+
+    def _has_mass_block(self):
+        """
+        Return True if there are masses stored in a block, False otherwise.
+
+        A value of False implies that all masses are specified in the header.
+        The return value of this function may be inaccurate after .load() has
+        been called.
+        """
+        n = np.logical_and(self.header.npart > 0, self.header.mass == 0).sum()
+        return n > 0
+
+    def _npars(self, pdata):
+        """
+        Return the list of particle counts for particle block data pdata.
+
+        If the block is not valid for particles of a given type, the
+        corresponding element in the returned list is None.
+        """
+        npars = [None for _ in self.ptypes]
+        for p, array in enumerate(pdata):
+            if array is None:
+                continue
+            npars[p] = len(array)
+        return npars
+
+    def _parse_block(self, block_data, fmt):
+        _, ndims, ptypes = fmt
+        begin = 0
+        pdata = []
+        for (p, np) in zip(self.ptypes, self.header.npart):
+            if p not in ptypes:
+                parray = None
+            else:
+                end = begin + np * ndims
+                parray = block_data[begin:end]
+                begin = end
+                if ndims > 1:
+                    parray.shape = (np, ndims)
+            pdata.append(parray)
+        return pdata
+
+    def _parse_masses(self, mass_data, fmt):
+        dtype, _, ptypes = fmt
+        begin = 0
+        pmasses = []
+        for (n, mass) in zip(self.header.npart, self.header.mass):
+            end = begin + n
+            if n > 0 and mass == 0:
+                # A zero in masses means mass is to be read in from block.
+                parray = mass_data[begin:end]
+            else:
+                parray = mass * np.ones(n, dtype=dtype)
+            begin = end
+            pmasses.append(parray)
+        return pmasses
+
+    def _update_npars(self):
+        npars = [None for _ in self.ptypes]
+        for (name, fmt) in self._schema.iteritems():
+            pdata = getattr(self, name)
+            npars2 = self._npars(pdata)
+            for p, (n, n2) in enumerate(zip(npars, npars2)):
+                # None value for n2 implies that particle type p is not valid
+                # for block specified by name.
+                # 0 value for n2 implies there are no particles of type p for
+                # block specified by name.
+                if (n != n2) and (n is not None) and (n2 is not None) and (n2 != 0):
+                    message = "npart mismatch for particle type " + str(p)
+                    raise SnapshotIOException(message)
+                npars[p] = max(n, n2)
+
+        npars = [n if n is not None else 0 for n in npars]
+        dtype, _ = self.header._schema['npart']
+        self.header.npart = np.array(npars, dtype=dtype)
