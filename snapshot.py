@@ -1,4 +1,3 @@
-from __future__ import print_function
 from copy import copy
 
 import numpy as np
@@ -136,7 +135,6 @@ class SnapshotHeader(object):
             try:
                 data = raw_data.view(dtype=dtype)
             except ValueError:
-                print(raw_data, dtype, dtype.itemsize, size)
                 raise SnapshotIOException('Could not reinterpret')
             if size == 1:
                 data = data[0]
