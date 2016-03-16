@@ -54,6 +54,5 @@ A snapshot can be written to file, optionally with a new filename,
 >>> s = glio.GadgetSnapshot('filename')
 >>> # Double all gas-particle smoothing lengths.
 >>> s.hsml[0] *= 2
->>> s.fname = 'new_filename'
->>> s.save()
+>>> s.save('new_filename')
 ```

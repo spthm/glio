@@ -50,11 +50,23 @@ class SnapshotHeader(object):
     """
     def __init__(self, fname, header_schema):
         super(SnapshotHeader, self).__init__()
-        self.fname = fname
+        self._fname = fname
         # Use copy so that reference schema is not altered.
         self._schema = copy(header_schema)
-        self.fields = []
+        self._fields = []
         self.verify_schema()
+
+    @property
+    def fields(self):
+        return self._fields
+
+    @property
+    def fname(self):
+        return self._fname
+
+    @fname.setter
+    def fname(self, fname):
+        self._fname = fname
 
     def iterfields(self):
         for name in self.fields:
@@ -71,11 +83,16 @@ class SnapshotHeader(object):
         values = tuple(getattr(self, name) for name in self.fields)
         return np.array(values, dtype=dtype)
 
-    def save(self):
+    def save(self, fname=None):
         """
         Write the snapshot header to the current file, overwriting the file.
+
+        A different file name to write to may optionally be provided.
         """
-        with FortranFile(self.fname, 'wb') as ffile:
+        if fname is None:
+            fname = self.fname
+
+        with FortranFile(fname, 'wb') as ffile:
             self._save(ffile)
 
     def verify_schema(self):
@@ -122,7 +139,7 @@ class SnapshotHeader(object):
             self._schema[name] = (dtype, size)
             self._ptypes = max(size, self._ptypes)
 
-        self.fields = self._schema.keys()
+        self._fields = self._schema.keys()
 
     def _load(self, ffile):
         raw_header = ffile.read_record('b1')
@@ -184,18 +201,27 @@ class SnapshotBase(object):
     def __init__(self, fname, header_schema, block_schema):
         """Initializes a Gadget-like snapshot."""
         super(SnapshotBase, self).__init__()
-        self.fname = fname
+        self._fname = fname
         self.header = SnapshotHeader(fname, header_schema)
-        self.fields = []
+        self._fields = []
 
         # Use copy so that reference schema is not altered.
         self._schema = copy(block_schema)
         self._ptypes = 0
         self.verify_schema()
 
-    def iterfields(self):
-        for name in self.fields:
-            yield (name, getattr(self, name))
+    @property
+    def fields(self):
+        return self._fields
+
+    @property
+    def fname(self):
+        return self._fname
+
+    @fname.setter
+    def fname(self, fname):
+        self.header.fname = fname
+        self._fname = fname
 
     @property
     def ptypes(self):
@@ -216,18 +242,27 @@ class SnapshotBase(object):
         """
         self._ptypes = max(value)
 
+    def iterfields(self):
+        for name in self.fields:
+            yield (name, getattr(self, name))
+
     def load(self):
         """Load in snapshot data from the current file."""
         with FortranFile(self.fname, 'rb') as ffile:
             self.header._load(ffile)
             self._load(ffile)
 
-    def save(self):
+    def save(self, fname=None):
         """
         Write header and snapshot to the current file, overwriting the file.
+
+        A different file name to write to may optionally be provided.
         """
+        if fname is None:
+            fname = self.fname
+
         self.update_header()
-        with FortranFile(self.fname, 'wb') as ffile:
+        with FortranFile(fname, 'wb') as ffile:
             self.header._save(ffile)
             self._save(ffile)
 
@@ -343,4 +378,4 @@ class SnapshotBase(object):
             if ptypes == [None]:
                 self._schema[name] = self.ptypes
 
-        self.fields = self._schema.keys()
+        self._fields = self._schema.keys()
