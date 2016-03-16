@@ -35,8 +35,10 @@ schema. They can also be obtained as a list of strings, or looped through,
 Block data is accessed similarly, and can be iterated over similarly,
 
 ```python
+>>> s.ID
+[array([1370534, 1370614, 1348895, ..., 1370615, 1370533, 1370531], dtype=uint32), ... ]
 >>> s.fields
-['pos', 'vel', ... ]
+['pos', 'vel', 'ID', ... ]
 >>> for (name, field) in s.iterfields():
 >>>     # Do something with block data.
 ```

@@ -78,6 +78,17 @@ class GadgetSnapshot(SnapshotBase):
         >>> for (name, field) in s.iterfields():
         >>>    # Do something
 
+    Position (pos) and velocity (vel) data are (N, 3) shape numpy.ndarrays.
+    For example, if s contains 128^3 gas particles, the (x, y, z) position of
+    the first gas particle, p0, can be accessed as
+
+        >>> gas_pos = s.pos[0]
+        >>> gas_pos.shape
+        (2097152, 3)
+        >>> p0 = gas_pos[0]
+        >>> p0.shape
+        (3,)
+
 
     Acessing metadata
     -----------------
