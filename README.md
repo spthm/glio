@@ -22,12 +22,12 @@ and similarly for the `SPHRAYSnapshot` class. Header data is accessible as
 >>> s.header.header_item
 ```
 
-where valid `header_item` attributes are defined by the schema. They can also
-be obtained as a list of strings, or looped through,
+where valid `header_item` attributes are defined by the current class' header
+schema. They can also be obtained as a list of strings, or looped through,
 
 ```python
 >>> s.header.fields
-    ['npart', 'mass', ... ]
+['npart', 'mass', ... ]
 >>> for (name, value) in s.header.iterfields():
 >>>    # Do something with header data.
 ```
@@ -36,7 +36,7 @@ Block data is accessed similarly, and can be iterated over similarly,
 
 ```python
 >>> s.fields
-    ['pos', 'vel', ... ]
+['pos', 'vel', ... ]
 >>> for (name, field) in s.iterfields():
 >>>     # Do something with block data.
 ```
@@ -52,7 +52,7 @@ A snapshot can be written to file, optionally with a new filename,
 ```python
 >>> import glio
 >>> s = glio.GadgetSnapshot('filename')
->>> Double all gas-particle smoothing lengths.
+>>> # Double all gas-particle smoothing lengths.
 >>> s.hsml[0] *= 2
 >>> s.fname = 'new_filename'
 >>> s.save()
