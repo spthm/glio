@@ -1,12 +1,13 @@
 glio
 ====
 
-A Python package for Gadget-like I/O. It provides a basic interface for reading
-and writing Gadget-like snapshot files from and to file.
+A Python package for reading and writing Gadget, and Gadget-like, data files.
+(glio ~ Gadget-like I/O.) It provides a basic interface for reading and writing
+Gadget-like snapshot files from and to a file.
 
 New file types may be added by defining a schema for the header and block data,
 and subclassing `SnapshotBase` (or one of its subclasses). See for example
-`GadgetSnapshot` in `gadget.py`.
+`GadgetSnapshot` in `gadget.py` and `SPHRAYSnapshot` in `sphray.py`.
 
 To load a Gadget-2 data file,
 
