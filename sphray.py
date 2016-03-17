@@ -1,8 +1,8 @@
 from collections import OrderedDict
 from itertools import chain
 
-from gadget import GadgetSnapshot
-from gadget import _header_schema as _gadget_header_schema
+from .gadget import GadgetSnapshot
+from .gadget import _header_schema as _gadget_header_schema
 
 # See gadget.py
 # Additional to gadget._header_schema.
@@ -20,8 +20,8 @@ _sphray_header_schema = OrderedDict([
 ])
 
 _header_schema = OrderedDict()
-for (key, value) in chain(_gadget_header_schema.iteritems(),
-                          _sphray_header_schema.iteritems()):
+for (key, value) in chain(_gadget_header_schema.items(),
+                          _sphray_header_schema.items()):
     _header_schema[key] = value
 
 # See gadget.py

@@ -2,7 +2,7 @@ from copy import copy
 
 import numpy as np
 
-from fortranio import FortranFile
+from .fortranio import FortranFile
 
 class SnapshotIOException(Exception):
     """Base class for exceptions in the the snapshot module."""
@@ -79,7 +79,7 @@ class SnapshotHeader(object):
 
     def to_array(self):
         """Return a structured array representing the header data."""
-        dtype = [(k, dt, size) for k, (dt, size) in self._schema.iteritems()]
+        dtype = [(k, dt, size) for k, (dt, size) in self._schema.items()]
         values = tuple(getattr(self, name) for name in self.fields)
         return np.array(values, dtype=dtype)
 
@@ -108,7 +108,7 @@ class SnapshotHeader(object):
         """
 
         self._ptypes = 0
-        for (name, fmt) in self._schema.iteritems():
+        for (name, fmt) in self._schema.items():
             # So that these are defined even for an invalid formatter
             dtype, size = ('f4', 1)
             if len(fmt) == 2:
@@ -144,7 +144,7 @@ class SnapshotHeader(object):
     def _load(self, ffile):
         raw_header = ffile.read_record('b1')
         offset = 0
-        for (name, fmt) in self._schema.iteritems():
+        for (name, fmt) in self._schema.items():
             dtype, size = fmt
             bytewords = dtype.itemsize * size
             # Must be non-scalar ndarray, hence wrap in np.array()
@@ -281,7 +281,7 @@ class SnapshotBase(object):
 
     def _load(self, ffile):
         """Load data for each block according to the schema."""
-        for (name, fmt) in self._schema.iteritems():
+        for (name, fmt) in self._schema.items():
             dtype, ndims, _ = fmt
             block_data = ffile.read_record(dtype)
             pdata = self._parse_block(block_data, fmt)
@@ -339,7 +339,7 @@ class SnapshotBase(object):
         """
 
         max_ptype = 0
-        for (name, fmt) in self._schema.iteritems():
+        for (name, fmt) in self._schema.items():
             # So that these are defined even for an invalid formatter.
             dtype, ndims, ptypes = ('f4', 1, [None, ])
             if len(fmt) == 3:
@@ -373,7 +373,7 @@ class SnapshotBase(object):
             raise SnapshotIOException(message)
 
         self._ptypes = max_ptype + 1
-        for (name, fmt) in self._schema.iteritems():
+        for (name, fmt) in self._schema.items():
             _, _, ptype = fmt
             if ptypes == [None]:
                 self._schema[name] = self.ptypes

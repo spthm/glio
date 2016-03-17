@@ -1,8 +1,6 @@
-from __future__ import print_function
-
-from snapshot import SnapshotHeader, SnapshotBase
-from gadget import GadgetSnapshot
-from sphray import SPHRAYSnapshot
+from .snapshot import SnapshotHeader, SnapshotBase
+from .gadget import GadgetSnapshot
+from .sphray import SPHRAYSnapshot
 
 _known_formats = ['gadget', 'sphray']
 _known_classes = [GadgetSnapshot, SPHRAYSnapshot]

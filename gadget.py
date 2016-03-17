@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import numpy as np
 
-from snapshot import SnapshotBase, SnapshotIOException
+from .snapshot import SnapshotBase, SnapshotIOException
 
 # The following numpy shorthand types are used:
 # 'i4' = integer          = 4 bytes.
@@ -120,7 +120,7 @@ class GadgetSnapshot(SnapshotBase):
         # FIXME: Doesn't work if npartTotHighWord is non-zero.
         # Can easily loop through and compute the actual npart values,
         # but what is the difference between npart and npartTotal?
-        for (name, fmt) in self._schema.iteritems():
+        for (name, fmt) in self._schema.items():
             if name == 'mass':
                 self._load_masses(ffile)
                 self._fix_header_masses()
@@ -204,7 +204,7 @@ class GadgetSnapshot(SnapshotBase):
 
     def _update_npars(self):
         npars = [None for _ in self.ptypes]
-        for (name, fmt) in self._schema.iteritems():
+        for (name, fmt) in self._schema.items():
             pdata = getattr(self, name)
             npars2 = self._npars(pdata)
             for p, (n, n2) in enumerate(zip(npars, npars2)):
