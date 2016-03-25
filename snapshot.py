@@ -316,6 +316,10 @@ class SnapshotBase(object):
             # If a is an empty numpy array, nothing will be written, so we
             # do not need to filter out empty arrays.
             arrays = [a for a in getattr(self, name) if a is not None]
+            for a in arrays:
+                if a.dtype != np.dtype(self._schema[name][0]):
+                    message = "dtype incorrect for field %s" % name
+                    raise SnapshotIOException(message)
             ffile.write_ndarrays(arrays)
 
     def _verify_schema(self):
