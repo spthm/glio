@@ -307,6 +307,9 @@ class SnapshotBase(object):
                 parray = block_data[begin:end]
                 begin = end
                 if ndims > 1:
+                    # Assigning to .shape does not modify the underlying data.
+                    # This is important for when we save to file, since ordering
+                    # of terms in ndim > 1 arrays must be preserved.
                     parray.shape = (N, ndims)
             pdata.append(parray)
         return pdata
