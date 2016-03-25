@@ -215,7 +215,13 @@ class GadgetSnapshot(SnapshotBase):
                 if (n != n2) and (n is not None) and (n2 is not None) and (n2 != 0):
                     message = "npart mismatch for particle type " + str(p)
                     raise SnapshotIOException(message)
-                npars[p] = max(n, n2)
+
+                if n is not None and n2 is not None:
+                    npars[p] = max(n, n2)
+                elif n2 is not None:
+                    # n is None
+                    npars[p] = n2
+                # else npars[p] = n, but that is already true.
 
         npars = [n if n is not None else 0 for n in npars]
         dtype, _ = self.header._schema['npart']

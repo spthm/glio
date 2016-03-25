@@ -296,7 +296,7 @@ class SnapshotBase(object):
         in the header.
         """
         _, ndims, ptypes = fmt
-        N = len(block_data) / (ndims * len(ptypes))
+        N = len(block_data) // (ndims * len(ptypes))
         begin = 0
         pdata = []
         for p in self.ptypes:

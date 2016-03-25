@@ -58,7 +58,7 @@ class FortranFile(object):
         dtype = np.dtype(dtype)
 
         nbytes = self._read_control()
-        nitems = nbytes / dtype.itemsize
+        nitems = nbytes // dtype.itemsize
         if nbytes % dtype.itemsize != 0:
             raise FortranIOException('Record size not valid for data type')
 
