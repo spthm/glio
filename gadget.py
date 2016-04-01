@@ -16,7 +16,7 @@ from .snapshot import SnapshotBase, SnapshotIOException
 # the corresponding binary file.
 
 # header_entry_name, (type[, length]).
-_header_schema = OrderedDict([
+_g_header_schema = OrderedDict([
     ('npart', ('i4', 6)),
     ('mass', ('f8', 6)),
     ('time', ('f8', 1)),
@@ -34,11 +34,11 @@ _header_schema = OrderedDict([
     ('flag_metals', ('i4', 1)),
     ('npartTotalHighWord', ('u4', 6)),
     ('flag_entropy_instead_u', ('i4', 1)),
-    ('padding', ('i4', 15)),
+    ('_padding', ('i4', 15)),
 ])
 
 # block_name, (type[, ndims, particletype]).
-_blocks_schema = OrderedDict([
+_g_blocks_schema = OrderedDict([
     ('pos', ('f4', 3, [0,1,2,3,4,5])),
     ('vel', ('f4', 3, [0,1,2,3,4,5])),
     ('ID', ('u4', 1, [0,1,2,3,4,5])),
@@ -103,7 +103,8 @@ class GadgetSnapshot(SnapshotBase):
     For the latter, see the SnapshotHeader class.
     """
 
-    def __init__(self, fname):
+    def __init__(self, fname, _header_schema=_g_header_schema,
+                 _blocks_schema=_g_blocks_schema):
         """Initializes a Gadget snapshot."""
         super(GadgetSnapshot, self).__init__(fname, _header_schema,
                                              _blocks_schema)
