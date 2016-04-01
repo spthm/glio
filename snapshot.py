@@ -389,7 +389,7 @@ class SnapshotBase(object):
             dtype, ndims, ptypes, flag = ('f4', 1, [None, ], True)
             if len(fmt) == 4:
                 dtype, ndims, ptypes, flag = fmt
-            if len(fmt) == 3:
+            elif len(fmt) == 3:
                 dtype, ndims, ptypes = fmt
             elif len(fmt) == 2:
                 dtype, ndims  = fmt
