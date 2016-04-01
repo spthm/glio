@@ -171,6 +171,8 @@ class SnapshotBase(object):
 
     This class is not intended to be used directly. If implementing a subclass,
     it is most likely it should be a subclass of GadgetSnapshot, not this class.
+    Subclasses will likely need to implement the _load_block() and
+    _parse_block() methods.
 
 
     Acessing Arrays
@@ -279,23 +281,59 @@ class SnapshotBase(object):
         """Verify the current schema."""
         self._verify_schema()
 
+    def _block_flagged(self, flag):
+        if isinstance(flag, str):
+            return getattr(self.header, flag)
+        else:
+            return flag
+
     def _load(self, ffile):
-        """Load data for each block according to the schema."""
+        """
+        Load data for each block in the schema from the open FortranFile ffile.
+
+        Only blocks with flags resolving to True are loaded from the file.
+        """
         for (name, fmt) in self._schema.items():
-            dtype, ndims, _ = fmt
-            block_data = ffile.read_record(dtype)
-            pdata = self._parse_block(block_data, fmt)
+            dtype, ndims, ptypes, flag = fmt
+            if self._block_flagged(flag):
+                block_data = self._load_block(ffile, name, dtype)
+                pdata = self._parse_block(block_data, name, dtype, ndims, ptypes)
+            else:
+                pdata = self._null_block(dtype, ndims, ptypes)
             setattr(self, name, pdata)
 
-    def _parse_block(self, block_data, fmt):
+    def _load_block(self, ffile, name, dtype):
         """
-        Interpret data within a block, according to the schema.
+        Return the next block from the open FortranFile ffile as an ndarray.
+
+        This is called before parsing each block's raw data, and may need to
+        be overriden by subclasses.
+        """
+        return ffile.read_record(dtype)
+
+    def _null_block(self, dtype, ndims, ptypes):
+        pdata = []
+        for p in self.ptypes:
+            if p not in ptypes:
+                parray = None
+            else:
+                parray = np.empty(0, dtype=dtype)
+                if ndims > 1:
+                    parray.shape = (0, ndims)
+            pdata.append(parray)
+        return pdata
+
+    def _parse_block(self, block_data, name, dtype, ndims, ptypes):
+        """
+        Return a list of data for each particle type in the block.
+
+        Interpret the raw data within block_data according to the schema,
+        and apply the specified particle type and dimensionality operations.
 
         Should be overriden by subclasses, as it assumes data is to be read
         exactly as described by the schema, and makes no use of information
         in the header.
         """
-        _, ndims, ptypes = fmt
         N = len(block_data) // (ndims * len(ptypes))
         begin = 0
         pdata = []
@@ -348,7 +386,9 @@ class SnapshotBase(object):
         max_ptype = 0
         for (name, fmt) in self._schema.items():
             # So that these are defined even for an invalid formatter.
-            dtype, ndims, ptypes = ('f4', 1, [None, ])
+            dtype, ndims, ptypes, flag = ('f4', 1, [None, ], True)
+            if len(fmt) == 4:
+                dtype, ndims, ptypes, flag = fmt
             if len(fmt) == 3:
                 dtype, ndims, ptypes = fmt
             elif len(fmt) == 2:
@@ -373,15 +413,17 @@ class SnapshotBase(object):
                 raise SnapshotIOException(message)
 
             max_ptype = max(max_ptype, max(ptypes))
-            self._schema[name] = (dtype, ndims, ptypes)
+            self._schema[name] = (dtype, ndims, ptypes, flag)
 
         if max_ptype == 0:
             message = 'At least one block schema must have specified ptypes'
             raise SnapshotIOException(message)
 
+        # For any block which had no ptypes set, assume it is valid for all
+        # ptypes.
         self._ptypes = max_ptype + 1
         for (name, fmt) in self._schema.items():
-            _, _, ptype = fmt
+            _, _, ptype, _ = fmt
             if ptypes == [None]:
                 self._schema[name] = self.ptypes
 

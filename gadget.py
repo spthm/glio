@@ -37,7 +37,9 @@ _g_header_schema = OrderedDict([
     ('_padding', ('i4', 15)),
 ])
 
-# block_name, (type[, ndims, particletype]).
+# block_name, (type[, ndims[, particletype[, flag]]]).
+# If present, flag may be boolean-like, or a string corresponding to a header
+# schema entry, e.g. 'flag_metals'.
 _g_blocks_schema = OrderedDict([
     ('pos', ('f4', 3, [0,1,2,3,4,5])),
     ('vel', ('f4', 3, [0,1,2,3,4,5])),
@@ -110,46 +112,42 @@ class GadgetSnapshot(SnapshotBase):
                                              _blocks_schema)
 
     def update_header(self):
+        """Update the header based on the current block data.
+
+        raise a SnapshotIOException if an inconsistency is found.
+        """
         self._update_npars()
 
-    def _fix_header_masses(self):
-        new_masses = [0 for _ in self.header.mass]
-        dtype = self.header._schema['mass'][0]
-        self.header.mass = np.array(new_masses, dtype=dtype)
-
-    def _load(self, ffile):
-        # FIXME: Doesn't work if npartTotHighWord is non-zero.
-        # Can easily loop through and compute the actual npart values,
-        # but what is the difference between npart and npartTotal?
-        for (name, fmt) in self._schema.items():
-            if name == 'mass':
-                self._load_masses(ffile)
-                self._fix_header_masses()
-            else:
-                dtype, _, _ = fmt
-                block_data = ffile.read_record(dtype)
-                pdata = self._parse_block(block_data, fmt)
-                setattr(self, name, pdata)
-
-    def _load_masses(self, ffile):
+    def _load_block(self, ffile, name, dtype):
         """
-        Load masses, accounting for those present in the header.
+        Return the next block from the open FortranFile ffile as an ndarray.
 
-        The next call to ffile.read_record() must return the mass data, if it
-        is present.
+        Take special care when loading the mass block, which may not exist
+        (in which case, return an empty ndarray).
         """
-        fmt = self._schema['mass']
-        dtype, _, _ = fmt
-        if self._has_mass_block():
-            block_data = ffile.read_record(dtype)
+        if name == 'mass':
+            return self._load_mass_block(ffile, dtype)
         else:
-            block_data = []
-        mass_data = self._parse_masses(block_data, fmt)
-        setattr(self, 'mass', mass_data)
+            return super(GadgetSnapshot, self)._load_block(ffile, name, dtype)
+
+    def _load_mass_block(self, ffile, dtype):
+        """
+        Load the mass block from the open FortranFile ffile.
+
+        If all masses a specified in the header, do not read from ffile, and
+        return an empty ndarray.
+
+        Note that, immediately prior to calling this method, the next call to
+        ffile.read_record() must return the mass data, if it is present.
+        """
+        if self._has_mass_block():
+            return ffile.read_record(dtype)
+        else:
+            return np.empty(0, dtype=dtype)
 
     def _has_mass_block(self):
         """
-        Return True if there are masses stored in a block, False otherwise.
+        Return True if the mass block exists in the file, False otherwise.
 
         A value of False implies that all masses are specified in the header.
         The return value of this function may be inaccurate after .load() has
@@ -172,8 +170,18 @@ class GadgetSnapshot(SnapshotBase):
             npars[p] = len(array)
         return npars
 
-    def _parse_block(self, block_data, fmt):
-        _, ndims, ptypes = fmt
+    def _parse_block(self, block_data, name, dtype, ndims, ptypes):
+        """
+        Return a list of data for each particle type in the block.
+
+        Interpret the raw data within block_data according to the schema,
+        and apply the specified particle type and dimensionality operations.
+
+        For the mass block, generate mass arrays from the header data where
+        appropriate.
+        """
+        if name == 'mass':
+            return self._parse_mass_block(block_data, dtype)
         begin = 0
         pdata = []
         for (p, np) in zip(self.ptypes, self.header.npart):
@@ -188,22 +196,33 @@ class GadgetSnapshot(SnapshotBase):
             pdata.append(parray)
         return pdata
 
-    def _parse_masses(self, mass_data, fmt):
-        dtype, _, ptypes = fmt
+    def _parse_mass_block(self, file_data, dtype):
+        """Return a list of mass-data ndarrays for each particle type.
+
+        Generate mass-data arrays from the header where appropriate.
+        """
         begin = 0
         pmasses = []
         for (n, mass) in zip(self.header.npart, self.header.mass):
-            end = begin + n
             if n > 0 and mass == 0:
-                # A zero in masses means mass is to be read in from block.
-                parray = mass_data[begin:end]
+                # A zero in masses means mass is to be read in from file.
+                end = begin + n
+                parray = file_data[begin:end]
+                begin = end
             else:
                 parray = mass * np.ones(n, dtype=dtype)
-            begin = end
             pmasses.append(parray)
+
+        # FIXME: We're currently just reading-in, and then overwriting the
+        # compacted mass representation. It would be better not to!
+        self._zero_header_masses()
         return pmasses
 
     def _update_npars(self):
+        """Update the header.npart list based on the current block data.
+
+        raise a SnapshotIOException if an inconsistency is found.
+        """
         npars = [None for _ in self.ptypes]
         for (name, fmt) in self._schema.items():
             pdata = getattr(self, name)
@@ -227,3 +246,8 @@ class GadgetSnapshot(SnapshotBase):
         npars = [n if n is not None else 0 for n in npars]
         dtype, _ = self.header._schema['npart']
         self.header.npart = np.array(npars, dtype=dtype)
+
+    def _zero_header_masses(self):
+        new_masses = [0 for _ in self.header.mass]
+        dtype = self.header._schema['mass'][0]
+        self.header.mass = np.array(new_masses, dtype=dtype)
