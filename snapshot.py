@@ -383,7 +383,7 @@ class SnapshotBase(object):
         SnapshotIOException.
         """
 
-        max_ptype = 0
+        max_ptype = -1
         for (name, fmt) in self._schema.items():
             # So that these are defined even for an invalid formatter.
             dtype, ndims, ptypes, flag = ('f4', 1, [None, ], True)
@@ -415,7 +415,7 @@ class SnapshotBase(object):
             max_ptype = max(max_ptype, max(ptypes))
             self._schema[name] = (dtype, ndims, ptypes, flag)
 
-        if max_ptype == 0:
+        if max_ptype == -1:
             message = 'At least one block schema must have specified ptypes'
             raise SnapshotIOException(message)
 
