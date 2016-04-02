@@ -3,6 +3,7 @@ from copy import copy
 import numpy as np
 
 from .fortranio import FortranFile
+from .snapview import SnapshotView
 
 class SnapshotIOException(Exception):
     """Base class for exceptions in the the snapshot module."""
@@ -25,18 +26,9 @@ class SnapshotHeader(object):
     schema dictionary for this header type. All valid keys are contained within
     the list hdr.fields.
 
+    All (entry_name, entry_value) pairs may be iterated through using
 
-    Accessing block data
-    --------------------
-
-    The data associated with a block 'block' can be acccessed as,
-
-        >>> s.block
-
-    which is a list of ndarrays, one for each particle type for block 'block'.
-    All (block_name, block_data) pairs may be iterated through using
-
-        >>> for (name, data) in s.iterfields():
+        >>> for (name, data) in hdr.iterfields():
         >>>     # Do something
 
 
@@ -183,8 +175,37 @@ class SnapshotBase(object):
         >>> array = s.block_name
 
     'block_name' can be any of the strings acting as keys of the schema
-    dictionary for this snapshot type.  A numpy array is returned. All valid
-    keys are contained within the list s.fields.
+    dictionary for this snapshot type.  A list is returned, with one item for
+    each particle type associated with this snapshot. If a particle type is not
+    valid for this block, its entry in the list is None. Otherwise, it is a
+    numpy.ndarray. For valid-but-empty particle data in a block, an empty
+    numpy.ndarray is present. All valid keys are contained within the list
+    s.fields.
+
+    All (block_name, block_data) pairs may be iterated through using
+
+    >>> for (name, data) in s.iterfields():
+    >>>     # Do something
+
+
+    Particle Type Aliases
+    ---------------------
+
+    If provied, particle type indices may be aliased to attributes. For example,
+    if gas particles have particle type 0, and 'pos' is a valid field, then
+
+        >>> s.pos[0] is s.gas.pos
+        True
+
+    However, note that s.gas is a SnapshotView, which is a read-only object.
+    In order to modify the dataset one must, in general, operate on s.pos[0] or
+    similar.
+
+    In the case that no index-to-name mapping is provided, s.gas or similar will
+    simply raise an AttributeError. The dictionary of index-to-name mappings may
+    be accessed as s.ptype_aliases. It will be None if no mapping is present, it
+    is not required to map all valid particle indices, and it may not be
+    assigned to.
 
 
     Acessing metadata
@@ -198,12 +219,24 @@ class SnapshotBase(object):
         >>> s.header
 
     For the latter, see the SnapshotHeader class.
+
+    The indices of all valid particle types for this snapshot are stored in the
+    list s.ptype_indices.
     """
 
-    def __init__(self, fname, header_schema, block_schema):
-        """Initializes a Gadget-like snapshot."""
+    def __init__(self, fname, header_schema, block_schema, ptype_aliases=None,
+                 **kwargs):
+        """
+        Initializes a Gadget-like snapshot.
+
+        header_schema defines the schema for loading the file header.
+        block_schema defines the schema for loading the various field data
+        ptype_aliases is an optional string-to-index mapping for the particle
+                      types contained in the snapshot
+        """
         super(SnapshotBase, self).__init__()
         self._fname = fname
+        self._aliases = ptype_aliases
         self.header = SnapshotHeader(fname, header_schema)
         self._fields = []
 
@@ -211,6 +244,14 @@ class SnapshotBase(object):
         self._schema = copy(block_schema)
         self._ptypes = 0
         self.verify_schema()
+
+    def __getattr__(self, name):
+        if self._aliases and name in self._aliases:
+            idx = self._aliases[name]
+            return self._ptype_view(idx)
+        else:
+            msg = "'%s' object has no attribute %s" % (type(self).__name__, name)
+            raise AttributeError(msg)
 
     @property
     def fields(self):
@@ -224,6 +265,10 @@ class SnapshotBase(object):
     def fname(self, fname):
         self.header.fname = fname
         self._fname = fname
+
+    @property
+    def ptype_aliases(self):
+        return self._aliases
 
     @property
     def ptype_indices(self):
@@ -352,6 +397,11 @@ class SnapshotBase(object):
                     parray.shape = (N, ndims)
             pdata.append(parray)
         return pdata
+
+    def _ptype_view(self, index):
+        ptype_data = ((name, field[index]) for name, field in self.iterfields())
+        view = SnapshotView(self, ptype_data)
+        return view
 
     def _save(self, ffile):
         for name in self.fields:

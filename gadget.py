@@ -50,6 +50,15 @@ _g_blocks_schema = OrderedDict([
     ('hsml', ('f4', 1, [0,])),
 ])
 
+_g_ptype_map = {
+    'gas': 0,
+    'halo': 1,
+    'disk': 2,
+    'bulge': 3,
+    'star': 4,
+    'boundary': 5,
+}
+
 
 class GadgetSnapshot(SnapshotBase):
     """
@@ -72,7 +81,7 @@ class GadgetSnapshot(SnapshotBase):
         >>> s.field_name[p]
 
     where 'field_name' is one of the strings in s.fields, p is the particle
-    type index (in [0, 6] as defined in Gadget-2) and [0:N] implies we wish
+    type index (in [0, 5] as defined in Gadget-2) and [0:N] implies we wish
     to access all particles from the first to the Nth.
 
     All fields may be iterated through using
@@ -91,6 +100,30 @@ class GadgetSnapshot(SnapshotBase):
         >>> p0.shape
         (3,)
 
+    Finally, the Gadget-2 particle types are aliased as follows:
+
+        0: gas
+        1: halo
+        2: disk
+        2: bulge
+        4: star
+        5: boundary
+
+    and all particle data for a given type may optionally be accessed using one
+    of these aliases. For example,
+
+        >>> s.gas.pos is s.pos[0]
+        True
+        >>> s.star.vel is s.vel[4]
+        True
+
+    However, note that s.alias_name is a SnapshotView, which is a read-only
+    object. In order to modify the dataset one must, in general, operate on
+    s.field_name[ptype_index] directly. See also SnapshotView.
+
+    The dictionary of all aliases, and their corresponding particle type
+    indices, is accessible via the s.ptype_aliases attribute.
+
 
     Acessing metadata
     -----------------
@@ -106,10 +139,12 @@ class GadgetSnapshot(SnapshotBase):
     """
 
     def __init__(self, fname, _header_schema=_g_header_schema,
-                 _blocks_schema=_g_blocks_schema):
+                 _blocks_schema=_g_blocks_schema, _ptype_aliases=_g_ptype_map,
+                 **kwargs):
         """Initializes a Gadget snapshot."""
         super(GadgetSnapshot, self).__init__(fname, _header_schema,
-                                             _blocks_schema)
+                                             _blocks_schema, _ptype_aliases,
+                                             **kwargs)
 
     def update_header(self):
         """Update the header based on the current block data.
