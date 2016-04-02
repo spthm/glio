@@ -5,6 +5,8 @@ A Python package for reading and writing Gadget, and Gadget-like, data files.
 (glio ~ Gadget-like I/O.) It provides a basic interface for reading and writing
 Gadget-like snapshot files from and to a file.
 
+glio is released under the MIT licence (see LICENCE.md).
+
 New file types may be added by defining a schema for the header and block data,
 and subclassing `SnapshotBase` (or one of its subclasses). See for example
 `GadgetSnapshot` in `gadget.py` and `SPHRAYSnapshot` in `sphray.py`.
