@@ -163,7 +163,7 @@ class GadgetSnapshot(SnapshotBase):
         If the block is not valid for particles of a given type, the
         corresponding element in the returned list is None.
         """
-        npars = [None for _ in self.ptypes]
+        npars = [None for _ in self.ptype_indices]
         for p, array in enumerate(pdata):
             if array is None:
                 continue
@@ -184,7 +184,7 @@ class GadgetSnapshot(SnapshotBase):
             return self._parse_mass_block(block_data, dtype)
         begin = 0
         pdata = []
-        for (p, np) in zip(self.ptypes, self.header.npart):
+        for (p, np) in zip(self.ptype_indices, self.header.npart):
             if p not in ptypes:
                 parray = None
             else:
@@ -223,7 +223,7 @@ class GadgetSnapshot(SnapshotBase):
 
         raise a SnapshotIOException if an inconsistency is found.
         """
-        npars = [None for _ in self.ptypes]
+        npars = [None for _ in self.ptype_indices]
         for (name, fmt) in self._schema.items():
             pdata = getattr(self, name)
             npars2 = self._npars(pdata)

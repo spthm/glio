@@ -226,7 +226,7 @@ class SnapshotBase(object):
         self._fname = fname
 
     @property
-    def ptypes(self):
+    def ptype_indices(self):
         """
         A list of the Gadget-like particle type indices in this snapshot.
 
@@ -235,9 +235,10 @@ class SnapshotBase(object):
         """
         return range(self._ptypes)
 
-    @ptypes.setter
-    def ptypes(self, value):
-        """Set the valid Gadget-like particle type indices for this snapshot.
+    @ptype_indices.setter
+    def ptype_indices(self, value):
+        """
+        Set the valid Gadget-like particle type indices for this snapshot.
 
         Must be an iterable containing all required particle types. Gaps are
         allowed; both [0, 1, 2, 3] and [0, 3] result in identical behaviour.
@@ -313,7 +314,7 @@ class SnapshotBase(object):
 
     def _null_block(self, dtype, ndims, ptypes):
         pdata = []
-        for p in self.ptypes:
+        for p in self.ptype_indices:
             if p not in ptypes:
                 parray = None
             else:
@@ -337,7 +338,7 @@ class SnapshotBase(object):
         N = len(block_data) // (ndims * len(ptypes))
         begin = 0
         pdata = []
-        for p in self.ptypes:
+        for p in self.ptype_indices:
             if p not in ptypes:
                 parray = None
             else:
@@ -425,6 +426,6 @@ class SnapshotBase(object):
         for (name, fmt) in self._schema.items():
             _, _, ptype, _ = fmt
             if ptypes == [None]:
-                self._schema[name] = self.ptypes
+                self._schema[name] = self.ptype_indices
 
         self._fields = self._schema.keys()
