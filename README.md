@@ -2,11 +2,10 @@ glio
 ====
 
 A Python package for reading and writing Gadget, and Gadget-like, data files.
-(glio ~ Gadget-like I/O.) It provides a basic interface for reading and writing
-Gadget-like snapshot files from and to a file.
+(glio ~ Gadget-like I/O.)
 
 glio is released under the MIT licence (see LICENCE.md).
-glio is compatible with Python 2.7.x and Python 3.x.
+glio is compatible with Python 2.7.x and Python 3.x, and requires numpy.
 
 New file types may be added by defining a schema for the header and block data,
 and subclassing `SnapshotBase` (or one of its subclasses). See for example
@@ -49,12 +48,12 @@ Block data is accessed similarly, and can be iterated over similarly,
 
 Each block data (`field` above) is a list, with each index `i` corresponding to
 that block's particle data for Gadget particle type `i`. When reading from file,
-if a block contains no data for a particle type `i`, an empty numpy.ndarray is
+if a block contains no data for a particle type `i`, an empty `numpy.ndarray` is
 set for that particle type in the list; if a particle type is not valid for the
 block, `None` is set.
 
 For convenience, particle types may be aliased to readable attribute names.
-A `dict` mapping the available attributes to their corresponding particle type indices is are availabe as the `s.ptype_aliases` attribute.
+A `dict` mapping the available attributes to their corresponding particle type indices is are availabe as `s.ptype_aliases`.
 
 For example, for a `GadgetSnapshot`,
 
@@ -66,7 +65,7 @@ For example, for a `GadgetSnapshot`,
 ```
 
 However, the alias attribute (e.g. `s.gas` or `s.star`) returns a `SnapshotView` object, which is read-only.
-Modification of the snapshot data in general requires directly modifying the field list.
+Modification of the snapshot data in general requires directly modifying the field list(s).
 
 A snapshot can be written to file, optionally with a new filename,
 
