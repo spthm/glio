@@ -11,8 +11,9 @@ class FortranFile(object):
 
     Methods:
         read_record
+        tell
         write_ndarray
-        write_value
+        write_ndarrays
     """
 
     def __init__(self, fname, mode='rb', control_bytes='4'):
@@ -126,16 +127,6 @@ class FortranFile(object):
             array.tofile(self._file)
         self._write_control(nbytes)
 
-    def write_value(self, value, dtype):
-        """Write a single value of numpy type dtype."""
-        array = np.array([x, ], dtype=dtype)
-        self.write(array)
-
-    def write_values(self, values, dtype):
-        """Write multiple values of numpy type dtype."""
-        array = np.array([v for v in values], dtype=dtype)
-        self.write(array)
-
     def _close(self):
         if self._file is None:
             raise FortranIOException("File not open")
@@ -154,6 +145,5 @@ class FortranFile(object):
         return n
 
     def _write_control(self, n):
-        # Do not call self.write_value; it would be an infinite loop.
         a = np.array([n, ], dtype=self._control_dtype)
         a.tofile(self._file)
