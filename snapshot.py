@@ -47,6 +47,7 @@ class SnapshotHeader(object):
         self._schema = copy(header_schema)
         self._fields = []
         self.verify_schema()
+        self.init_fields()
 
     @property
     def fields(self):
@@ -59,6 +60,15 @@ class SnapshotHeader(object):
     @fname.setter
     def fname(self, fname):
         self._fname = fname
+
+    def init_fields(self):
+        """Reset all header attributes to zero-like values."""
+        for (name, fmt) in self._schema.items():
+            dtype, size = fmt
+            data = np.zeros(size, dtype=dtype)
+            if size == 1:
+                data = data[0]
+            setattr(self, name, data)
 
     def iterfields(self):
         for name in self.fields:
@@ -80,16 +90,48 @@ class SnapshotHeader(object):
         Write the snapshot header to the current file, overwriting the file.
 
         A different file name to write to may optionally be provided.
+
+        The method will raise a SnapshotIOException if the current header is
+        not valid. See verify().
         """
         if fname is None:
             fname = self.fname
 
+        if self.verify() != []:
+            raise SnapshotIOException("Current header state invalid")
+
         with FortranFile(fname, 'wb') as ffile:
             self._save(ffile)
 
+    def verify(self):
+        """
+        Return a list of header attributes which do not conform to the schema.
+
+        An empty list indicates that the header is valid.
+        """
+        malformed = []
+        for (name, fmt) in self._schema.items():
+            dtype, size = fmt
+            data = getattr(self, name)
+
+            try:
+                count = len(data)
+            except TypeError:
+                count = 1
+
+            if count != size:
+                malformed.append(name)
+            else:
+                try:
+                    converted = np.asarray(data).view(dtype=dtype)
+                except ValueError:
+                    malformed.append(name)
+
+        return malformed
+
     def verify_schema(self):
         """
-        Verifies the header formatter, and updates it if necessary.
+        Verify the header formatter, and update it if necessary.
 
         When an element type is not supplied, it is assumed to be a 4-byte
         float.
@@ -244,6 +286,7 @@ class SnapshotBase(object):
         self._schema = copy(block_schema)
         self._ptypes = 0
         self.verify_schema()
+        self.init_fields()
 
     def __getattr__(self, name):
         if self._aliases and name in self._aliases:
@@ -290,6 +333,13 @@ class SnapshotBase(object):
         """
         self._ptypes = max(value)
 
+    def init_fields(self):
+        """Reset all data attributes to zero-like values."""
+        for (name, fmt) in self._schema.items():
+            dtype, ndims, ptypes, _ = fmt
+            pdata = self._null_block(dtype, ndims, ptypes)
+            setattr(self, name, pdata)
+
     def iterfields(self):
         for name in self.fields:
             yield (name, getattr(self, name))
@@ -305,9 +355,17 @@ class SnapshotBase(object):
         Write header and snapshot to the current file, overwriting the file.
 
         A different file name to write to may optionally be provided.
+
+        The method will raise a SnapshotIOException if the any field is not
+        valid. See verify().
         """
         if fname is None:
             fname = self.fname
+
+        if self.header.verify() != []:
+            raise SnapshotIOException("Current header state invalid")
+        if self.verify() != []:
+            raise SnapshotIOException("A field does not match the schema")
 
         self.update_header()
         with FortranFile(fname, 'wb') as ffile:
@@ -322,6 +380,26 @@ class SnapshotBase(object):
         It should be overridden by subclasses.
         """
         pass
+
+    def verify(self):
+        """
+        Return a list of fields which do not conform to the schema.
+
+        An empty list indicates that all fields are valid.
+        """
+        malformed = []
+        for name in self.fields:
+            # If a is an empty numpy array, nothing will be written, so we
+            # do not need to filter out empty arrays.
+            dtype, ndims, _, _ = self._schema[name]
+            arrays = [a for a in getattr(self, name) if a is not None]
+            for a in arrays:
+                if a.dtype != dtype or (a.ndim > 1 and a.shape[-1] != ndims):
+                    print name, a.dtype, dtype
+                    malformed.append(name)
+                    # Don't want duplicates; one problem is sufficient.
+                    break
+        return malformed
 
     def verify_schema(self):
         """Verify the current schema."""
@@ -358,6 +436,9 @@ class SnapshotBase(object):
         return ffile.read_record(dtype)
 
     def _null_block(self, dtype, ndims, ptypes):
+        """
+        Return a block of zero-like data, or None where ptype not appropriate.
+        """
         pdata = []
         for p in self.ptype_indices:
             if p not in ptypes:
@@ -408,10 +489,6 @@ class SnapshotBase(object):
             # If a is an empty numpy array, nothing will be written, so we
             # do not need to filter out empty arrays.
             arrays = [a for a in getattr(self, name) if a is not None]
-            for a in arrays:
-                if a.dtype != np.dtype(self._schema[name][0]):
-                    message = "dtype incorrect for field %s" % name
-                    raise SnapshotIOException(message)
             ffile.write_ndarrays(arrays)
 
     def _verify_schema(self):
