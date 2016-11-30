@@ -89,7 +89,9 @@ class SnapshotHeader(object):
         """
         Write the snapshot header to the current file, overwriting the file.
 
-        A different file name to write to may optionally be provided.
+        A different file name to write to may optionally be provided. This
+        does not modify the header's fname attribute, so later calling
+        load() will re-load data from the original file.
 
         The method will raise a SnapshotIOException if the current header is
         not valid. See verify().
@@ -244,8 +246,8 @@ class SnapshotBase(object):
     similar.
 
     In the case that no index-to-name mapping is provided, s.gas or similar will
-    simply raise an AttributeError. The dictionary of index-to-name mappings may
-    be accessed as s.ptype_aliases. It will be None if no mapping is present, it
+    raise an AttributeError. The dictionary of index-to-name mappings may be
+    accessed as s.ptype_aliases. It will be None if no mapping is present, it
     is not required to map all valid particle indices, and it may not be
     assigned to.
 
@@ -354,7 +356,9 @@ class SnapshotBase(object):
         """
         Write header and snapshot to the current file, overwriting the file.
 
-        A different file name to write to may optionally be provided.
+        A different file name to write to may optionally be provided. This
+        does not modify the header's or the snapshot's fname attribute, so
+        later calling load() will re-load data from the original file.
 
         The method will raise a SnapshotIOException if the any field is not
         valid. See verify().
