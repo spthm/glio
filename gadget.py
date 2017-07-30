@@ -50,7 +50,7 @@ _g_IC_blocks_schema = OrderedDict([
     ('u', ('f4', 1, [0,])),
 ])
 _g_blocks_schema = OrderedDict([(k, v) for k, v in _g_IC_blocks_schema.items()])
-_g_blocks_schema['rho']  = ('f4', 1, [0,]),
+_g_blocks_schema['rho']  = ('f4', 1, [0,])
 _g_blocks_schema['hsml'] = ('f4', 1, [0,])
 
 _g_ptype_map = {
