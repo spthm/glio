@@ -64,8 +64,10 @@ class SPHRAYSnapshot(GadgetSnapshot):
         >>> s.load()
     """
 
-    def __init__(self, fname, _header_schema=_sphray_header_schema,
-                 _blocks_schema=_sphray_blocks_schema, **kwargs):
+    def __init__(self, fname, header_schema=_sphray_header_schema,
+                 blocks_schema=_sphray_blocks_schema, **kwargs):
         """Initializes an SPHRAY snapshot."""
-        super(SPHRAYSnapshot, self).__init__(fname, _header_schema,
-                                             _blocks_schema, **kwargs)
+        super(SPHRAYSnapshot, self).__init__(fname,
+                                             header_schema=header_schema,
+                                             blocks_schema=blocks_schema,
+                                             **kwargs)

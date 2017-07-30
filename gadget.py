@@ -40,15 +40,18 @@ _g_header_schema = OrderedDict([
 # block_name, (type[, ndims[, particletype[, flag]]]).
 # If present, flag may be boolean-like, or a string corresponding to a header
 # schema entry, e.g. 'flag_metals'.
-_g_blocks_schema = OrderedDict([
+# Gadget IC files need contain data only up to and including internal energy,
+# and in glio are treated as if no further data is present.
+_g_IC_blocks_schema = OrderedDict([
     ('pos', ('f4', 3, [0,1,2,3,4,5])),
     ('vel', ('f4', 3, [0,1,2,3,4,5])),
     ('ID', ('u4', 1, [0,1,2,3,4,5])),
     ('mass', ('f4', 1, [0,1,2,3,4,5])),
     ('u', ('f4', 1, [0,])),
-    ('rho', ('f4', 1, [0,])),
-    ('hsml', ('f4', 1, [0,])),
 ])
+_g_blocks_schema = OrderedDict([(k, v) for k, v in _g_IC_blocks_schema.items()])
+_g_blocks_schema['rho']  = ('f4', 1, [0,]),
+_g_blocks_schema['hsml'] = ('f4', 1, [0,])
 
 _g_ptype_map = {
     'gas': 0,
@@ -138,16 +141,21 @@ class GadgetSnapshot(SnapshotBase):
     For the latter, see the SnapshotHeader class.
     """
 
-    def __init__(self, fname, _header_schema=_g_header_schema,
-                 _blocks_schema=_g_blocks_schema, _ptype_aliases=_g_ptype_map,
-                 **kwargs):
+    def __init__(self, fname, header_schema=_g_header_schema,
+                 blocks_schema=_g_blocks_schema, ptype_aliases=_g_ptype_map,
+                 ICfile=False, **kwargs):
         """Initializes a Gadget snapshot."""
-        super(GadgetSnapshot, self).__init__(fname, _header_schema,
-                                             _blocks_schema, _ptype_aliases,
+        if ICfile:
+            blocks_schema = _g_IC_blocks_schema
+        super(GadgetSnapshot, self).__init__(fname,
+                                             header_schema=header_schema,
+                                             blocks_schema=blocks_schema,
+                                             ptype_aliases=ptype_aliases,
                                              **kwargs)
 
     def update_header(self):
-        """Update the header based on the current block data.
+        """
+        Update the header based on the current block data.
 
         raise a SnapshotIOException if an inconsistency is found.
         """

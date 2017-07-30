@@ -268,24 +268,29 @@ class SnapshotBase(object):
     list s.ptype_indices.
     """
 
-    def __init__(self, fname, header_schema, block_schema, ptype_aliases=None,
-                 **kwargs):
+    def __init__(self, fname, header_schema=None, blocks_schema=None,
+                 ptype_aliases=None, **kwargs):
         """
         Initializes a Gadget-like snapshot.
 
         header_schema defines the schema for loading the file header.
-        block_schema defines the schema for loading the various field data
+        blocks_schema defines the schema for loading the various field data
         ptype_aliases is an optional string-to-index mapping for the particle
                       types contained in the snapshot
         """
-        super(SnapshotBase, self).__init__()
+        if header_schema is None:
+            raise TypeError("header_schema is required")
+        if blocks_schema is None:
+            raise TypeError("blocks_schema is required")
+
+        super(SnapshotBase, self).__init__(**kwargs)
         self._fname = fname
         self._aliases = ptype_aliases
         self.header = SnapshotHeader(fname, header_schema)
         self._fields = []
 
         # Use copy so that reference schema is not altered.
-        self._schema = copy(block_schema)
+        self._schema = copy(blocks_schema)
         self._ptypes = 0
         self.verify_schema()
         self.init_fields()
