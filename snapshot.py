@@ -248,7 +248,7 @@ class SnapshotBase(object):
     In the case that no index-to-name mapping is provided, s.gas or similar will
     raise an AttributeError. The dictionary of index-to-name mappings may be
     accessed as s.ptype_aliases. It will be None if no mapping is present, it
-    is not required to map all valid particle indices, and it may not be
+    is not required to map all valid particle indices, and it cannot be
     assigned to.
 
 
