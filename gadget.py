@@ -153,6 +153,11 @@ class GadgetSnapshot(SnapshotBase):
                                              ptype_aliases=ptype_aliases,
                                              **kwargs)
 
+    def save(self, fname=None):
+        if self.header.num_files != 1:
+            raise SnapshotIOException("header num_files must be 1")
+        super(GadgetSnapshot, self).save(fname)
+
     def update_header(self):
         """
         Update the header based on the current block data.
