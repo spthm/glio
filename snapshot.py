@@ -414,7 +414,15 @@ class SnapshotBase(object):
         """Verify the current schema."""
         self._verify_schema()
 
-    def _block_flagged(self, flag):
+    def _block_exists(self, name, ptypes):
+        """
+        Return True if specified particle types exist for specified block.
+
+        Must be overriden by subclasses.
+        """
+        raise NotImplementedError("Subclassees must override _block_exists")
+
+    def _get_flag(self, flag):
         if isinstance(flag, str):
             return getattr(self.header, flag)
         else:
@@ -428,7 +436,7 @@ class SnapshotBase(object):
         """
         for (name, fmt) in self._schema.items():
             dtype, ndims, ptypes, flag = fmt
-            if self._block_flagged(flag):
+            if self._block_exists(name, ptypes) and self._get_flag(flag):
                 block_data = self._load_block(ffile, name, dtype)
                 pdata = self._parse_block(block_data, name, dtype, ndims, ptypes)
             else:
@@ -444,6 +452,10 @@ class SnapshotBase(object):
         """
         return ffile.read_record(dtype)
 
+    def _null_array(self, dtype):
+        """Return an empty numpy array of element type dtype."""
+        return np.empty(0, dtype=dtype)
+
     def _null_block(self, dtype, ndims, ptypes):
         """
         Return a block of zero-like data, or None where ptype not appropriate.
@@ -453,7 +465,7 @@ class SnapshotBase(object):
             if p not in ptypes:
                 parray = None
             else:
-                parray = np.empty(0, dtype=dtype)
+                parray = self._null_array(dtype)
                 if ndims > 1:
                     parray.shape = (0, ndims)
             pdata.append(parray)

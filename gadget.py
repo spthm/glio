@@ -161,6 +161,10 @@ class GadgetSnapshot(SnapshotBase):
         """
         self._update_npars()
 
+    def _block_exists(self, name, ptypes):
+        """Return True if specified particle types exist for specified block."""
+        return any(self.header.npart[i] > 0 for i in ptypes)
+
     def _load_block(self, ffile, name, dtype):
         """
         Return the next block from the open FortranFile ffile as an ndarray.
@@ -184,9 +188,10 @@ class GadgetSnapshot(SnapshotBase):
         ffile.read_record() must return the mass data, if it is present.
         """
         if self._has_mass_block():
-            return ffile.read_record(dtype)
+            return super(GadgetSnapshot, self)._load_block(ffile, 'mass', dtype)
         else:
-            return np.empty(0, dtype=dtype)
+            # We'll deal with this in _parse_block, _parse_mass_block.
+            return self._null_array(dtype)
 
     def _has_mass_block(self):
         """
