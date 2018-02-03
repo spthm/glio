@@ -53,7 +53,7 @@ set for that particle type in the list; if a particle type is not valid for the
 block, `None` is set.
 
 For convenience, particle types may be aliased to readable attribute names.
-A `dict` mapping the available attributes to their corresponding particle type indices is are availabe as `s.ptype_aliases`.
+A `dict` mapping the available attributes to their corresponding particle type indices is availabe as `s.ptype_aliases`.
 
 For example, for a `GadgetSnapshot`,
 
