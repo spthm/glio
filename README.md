@@ -61,7 +61,9 @@ For example, for a `GadgetSnapshot`,
 >>> s.ptype_aliases
 {'star': 4, 'bulge': 3, 'gas': 0, 'boundary': 5, 'disk': 2, 'halo': 1}
 >>> s.gas.pos is s.pos[0]
+True
 >>> s.star.vel is s.vel[4]
+True
 ```
 
 However, the alias attribute (e.g. `s.gas` or `s.star`) returns a `SnapshotView` object, which is read-only.
